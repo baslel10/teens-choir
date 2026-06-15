@@ -20,8 +20,8 @@
                 <span class="h-2 w-2 rounded-full bg-tempo animate-pulse"></span>
                 <h1 class="text-base font-black tracking-widest uppercase">Eklektos Command Center</h1>
             </div>
-            <button onclick="loadSystem()" class="p-2.5 bg-gray-900 border border-gray-800 rounded-xl hover:bg-gray-800 text-sm font-semibold flex items-center gap-2">
-                <i data-lucide="refresh-cw" class="w-4 h-4"></i> Sync Platform Data
+            <button onclick="syncFromTelegramCloud()" class="p-2.5 bg-gray-900 border border-gray-800 rounded-xl hover:bg-gray-800 text-sm font-semibold flex items-center gap-2 transition-all">
+                <i data-lucide="refresh-cw" class="w-4 h-4" id="syncIcon"></i> Sync Platform Data
             </button>
         </div>
     </header>
@@ -66,9 +66,9 @@
         <div class="lg:col-span-2 space-y-8">
             <!-- AUDITION QUEUE -->
             <div>
-                <h2 class="text-xl font-bold mb-4 flex items-center gap-2"><i data-lucide="users-2" class="text-melody w-5 h-5"></i> Incoming Audition Traffic</h2>
+                <h2 class="text-xl font-bold mb-4 flex items-center gap-2"><i data-lucide="users-2" class="text-melody w-5 h-5"></i> Incoming Audition Traffic (Telegram Sync)</h2>
                 <div id="queueEmpty" class="hidden text-center py-12 bg-desk rounded-2xl border border-dashed border-gray-800">
-                    <p class="text-gray-500 font-medium text-sm">No new requests in the queue channel.</p>
+                    <p class="text-gray-500 font-medium text-sm">No new requests in the cloud queue.</p>
                 </div>
                 <div id="logsGrid" class="space-y-4 max-h-96 overflow-y-auto pr-1">
                     <!-- Cards render point -->
@@ -91,6 +91,7 @@
     <script>
         // Initialize real-time cross-tab transmission channel
         const choirChannel = new BroadcastChannel('eklektos_choir_pipeline');
+        const BOT_TOKEN = "8937722747:AAFIGl9JWb2GUcuJ0wKs7StYNLgV4lXcZEA";
 
         // CREDENTIAL GENERATOR PIPELINES
         function createCredentials(fullName) {
@@ -104,6 +105,56 @@
                 passGen += charset.charAt(Math.floor(Math.random() * charset.length));
             }
             return { username: userGen, password: passGen };
+        }
+
+        // TELEGRAM CLOUD SYNCHRONIZER
+        function syncFromTelegramCloud() {
+            const syncIcon = document.getElementById('syncIcon');
+            if (syncIcon) syncIcon.classList.add('animate-spin');
+
+            fetch(`https://api.telegram.org/bot${BOT_TOKEN}/getUpdates?allowed_updates=["message"]`)
+            .then(res => res.json())
+            .then(data => {
+                if (!data.ok) throw new Error("Telegram Handshake Failure");
+
+                let incomingApplicants = new Map();
+
+                if (data.result && data.result.length > 0) {
+                    data.result.forEach(update => {
+                        const message = update.message || update.edited_message;
+                        if (message && message.text) {
+                            const text = message.text;
+                            
+                            // Look for the metadata delimiter tags appended from audition.html
+                            if (text.includes("||DATA:") && text.includes("||")) {
+                                try {
+                                    const rawJson = text.split("||DATA:")[1].split("||")[0];
+                                    const parsedApp = JSON.parse(rawJson);
+                                    
+                                    // Map deduplicates items automatically using their internal ID
+                                    incomingApplicants.set(parsedApp.id, parsedApp);
+                                } catch (e) {
+                                    console.error("Malformed block parsed from telemetry feed");
+                                }
+                            }
+                        }
+                    });
+                }
+
+                // Re-write back down into local cache array so layout rendering loop picks it up safely
+                const synchronizedLogs = Array.from(incomingApplicants.values());
+                localStorage.setItem('choirAuditions', JSON.stringify(synchronizedLogs));
+                
+                // Refresh standard viewport displays
+                loadSystem();
+            })
+            .catch(err => {
+                console.error("Cloud syncing failed:", err);
+                alert("Could not sync with Telegram cloud cache. Showing local layout snapshot.");
+            })
+            .finally(() => {
+                if (syncIcon) syncIcon.classList.remove('animate-spin');
+            });
         }
 
         // DUAL PLATFORM DISPATCH SYSTEM (TELEGRAM & GMAIL ROUTING)
@@ -134,7 +185,9 @@
             
             // 5. Compute Telegram route destination link channels cleanly
             let cleanHandle = telegramHandle.trim().replace('@', '');
-            let telegramURL = `https://t.me/${cleanHandle}`;
+            let telegramURL = cleanHandle.startsWith('+') || !isNaN(cleanHandle)
+                ? `https://wa.me/${cleanHandle.replace('+', '')}`
+                : `https://t.me/${cleanHandle}`;
 
             // 6. Eject item out of queue logs record systems completely
             let logs = JSON.parse(localStorage.getItem('choirAuditions')) || [];
@@ -323,7 +376,11 @@
             lucide.createIcons();
         }
 
-        window.onload = loadSystem;
+        // Run cloud fetch configuration immediately on mount
+        window.onload = function() {
+            loadSystem();
+            syncFromTelegramCloud();
+        };
     </script>
 </body>
 </html>
