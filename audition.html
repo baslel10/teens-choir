@@ -69,7 +69,7 @@
                 </div>
             </div>
 
-            <button type="submit" class="w-full glow-button py-4 text-white font-bold rounded-xl transition-all transform flex items-center justify-center gap-2">
+            <button type="submit" id="submitBtn" class="w-full glow-button py-4 text-white font-bold rounded-xl transition-all transform flex items-center justify-center gap-2">
                 Submit Application <i data-lucide="arrow-right" class="w-4 h-4"></i>
             </button>
         </form>
@@ -79,28 +79,68 @@
                 <i data-lucide="check-circle-2" class="w-10 h-10"></i>
             </div>
             <h2 class="text-2xl font-black mb-3">Application Transmitted!</h2>
-            <p class="text-gray-400 text-sm max-w-sm mb-6">Your audition request has been routed to the director team dashboard.</p>
+            <p class="text-gray-400 text-sm max-w-sm mb-6">Your audition request has been routed directly to the director team.</p>
             <a href="index.html" class="px-6 py-2.5 bg-gray-900 border border-gray-800 text-sm font-semibold rounded-xl text-gray-300">Return Home</a>
         </div>
     </div>
 
     <script>
         lucide.createIcons();
+
         document.getElementById('auditionForm').addEventListener('submit', function(e) {
             e.preventDefault();
-            const app = {
-                id: 'EKL-' + Date.now().toString().slice(-4),
-                fullName: document.getElementById('fullName').value.trim(),
-                email: document.getElementById('email').value.trim(),
-                telegram: document.getElementById('telegramContact').value.trim(),
-                age: document.getElementById('age').value,
-                reason: document.getElementById('reason').value.trim(),
-                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            };
-            let currentLogs = JSON.parse(localStorage.getItem('choirAuditions')) || [];
-            currentLogs.unshift(app);
-            localStorage.setItem('choirAuditions', JSON.stringify(currentLogs));
-            document.getElementById('successState').classList.remove('hidden');
+            
+            // Disable button during network request to prevent double submissions
+            const btn = document.getElementById('submitBtn');
+            btn.disabled = true;
+            btn.innerText = "Transmitting...";
+
+            // Gather inputs
+            const fullName = document.getElementById('fullName').value.trim();
+            const email = document.getElementById('email').value.trim();
+            const telegram = document.getElementById('telegramContact').value.trim();
+            const age = document.getElementById('age').value;
+            const reason = document.getElementById('reason').value.trim();
+
+            // Format Markdown notification text card for Telegram
+            const messageText = `🚨 *New Eklektos Audition Application!*\n\n` +
+                                `👤 *Name:* ${fullName}\n` +
+                                `📧 *Email:* ${email}\n` +
+                                `✈️ *Telegram/Phone:* ${telegram}\n` +
+                                `🎂 *Age:* ${age} years old\n\n` +
+                                `📝 *Reason for joining:* \n"${reason}"`;
+
+            // Your verified credentials
+            const BOT_TOKEN = "8937722747:AAFIGl9JWb2GUcuJ0wKs7StYNLgV4lXcZEA";
+            const CHAT_ID = "1216904898";
+
+            // Post payload directly over Telegram Pipeline Channel
+            fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    chat_id: CHAT_ID,
+                    text: messageText,
+                    parse_mode: 'Markdown'
+                })
+            })
+            .then(response => {
+                if (response.ok) {
+                    document.getElementById('successState').classList.remove('hidden');
+                } else {
+                    alert("Submission failed to sync with the network. Please retry.");
+                    btn.disabled = false;
+                    btn.innerHTML = `Submit Application <i data-lucide="arrow-right" class="w-4 h-4"></i>`;
+                    lucide.createIcons();
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                alert("Network timeout. Please check your data connection.");
+                btn.disabled = false;
+                btn.innerHTML = `Submit Application <i data-lucide="arrow-right" class="w-4 h-4"></i>`;
+                lucide.createIcons();
+            });
         });
     </script>
 </body>
