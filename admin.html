@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Eklektos Admin HQ | Core Engine</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = {
+            theme: { extend: { colors: { harmony: '#06060A', desk: '#0F0F16', melody: '#6366F1', tempo: '#10B981' } } }
+        }
+    </script>
+</head>
+<body class="bg-harmony text-gray-100 min-h-screen font-sans pb-16">
+
+    <header class="bg-desk border-b border-gray-900 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <span class="h-2 w-2 rounded-full bg-tempo animate-pulse"></span>
+                <h1 class="text-base font-black tracking-widest uppercase">Eklektos Command Center</h1>
+            </div>
+            <button onclick="loadSystem()" class="p-2.5 bg-gray-900 border border-gray-800 rounded-xl hover:bg-gray-800 text-sm font-semibold flex items-center gap-2">
+                <i data-lucide="refresh-cw" class="w-4 h-4"></i> Sync Platform Data
+            </button>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-6 mt-10 grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        <!-- LEFT PANELS: ALERTS & TRACK WRITERS -->
+        <div class="space-y-8 lg:col-span-1">
+            <!-- BOARD 1: ANNOUNCEMENT DISPATCHER -->
+            <div class="bg-desk border border-gray-900 rounded-2xl p-6">
+                <h3 class="font-black text-sm uppercase tracking-wider mb-4 text-gray-400 flex items-center gap-2"><i data-lucide="megaphone" class="w-4 h-4 text-melody"></i> Global Announcement</h3>
+                <div class="space-y-3">
+                    <textarea id="newAlert" rows="2" placeholder="Type notification for choir members here..." class="w-full bg-black/40 border border-gray-800 focus:border-melody rounded-xl p-3 text-xs text-white outline-none resize-none"></textarea>
+                    <div class="flex gap-2">
+                        <button onclick="publishAlert()" class="flex-1 py-2 bg-melody text-xs font-bold rounded-xl text-center">Broadcast</button>
+                        <button onclick="clearAlert()" class="px-3 bg-gray-900 border border-gray-800 text-xs text-red-400 font-bold rounded-xl">Clear</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- BOARD 2: MP3 MUSIC REHEARSAL UPLOADER -->
+            <div class="bg-desk border border-gray-900 rounded-2xl p-6">
+                <h3 class="font-black text-sm uppercase tracking-wider mb-4 text-gray-400 flex items-center gap-2"><i data-lucide="music-2" class="w-4 h-4 text-tempo"></i> MP3 Track Library</h3>
+                <form onsubmit="addSong(event)" class="space-y-3">
+                    <input type="text" id="songTitle" required placeholder="Song Title" class="w-full bg-black/40 border border-gray-800 focus:border-tempo rounded-xl p-3 text-xs text-white outline-none">
+                    <input type="text" id="vocalPart" required placeholder="Part (Soprano, Alto, Tenor, Bass)" class="w-full bg-black/40 border border-gray-800 focus:border-tempo rounded-xl p-3 text-xs text-white outline-none">
+                    
+                    <div>
+                        <label class="block text-[10px] text-gray-400 uppercase font-bold tracking-wider mb-1">Select MP3 Audio Track</label>
+                        <input type="file" id="audioFile" accept="audio/mp3, audio/*" required class="w-full text-xs text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-gray-900 file:text-white hover:file:bg-gray-800 cursor-pointer">
+                    </div>
+
+                    <button type="submit" class="w-full py-2.5 bg-tempo text-xs text-black font-black rounded-xl">Publish MP3 Track</button>
+                </form>
+                <div id="songsListAdmin" class="mt-4 pt-4 border-t border-gray-900 space-y-2 max-h-40 overflow-y-auto">
+                    <!-- Dynamic songs listed here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT PANELS: LIVE APPLICANTS & MEMBER MANAGER -->
+        <div class="lg:col-span-2 space-y-8">
+            <!-- AUDITION QUEUE -->
+            <div>
+                <h2 class="text-xl font-bold mb-4 flex items-center gap-2"><i data-lucide="users-2" class="text-melody w-5 h-5"></i> Incoming Audition Traffic</h2>
+                <div id="queueEmpty" class="hidden text-center py-12 bg-desk rounded-2xl border border-dashed border-gray-800">
+                    <p class="text-gray-500 font-medium text-sm">No new requests in the queue channel.</p>
+                </div>
+                <div id="logsGrid" class="space-y-4 max-h-96 overflow-y-auto pr-1">
+                    <!-- Cards render point -->
+                </div>
+            </div>
+
+            <!-- CHOIR MEMBER MANAGEMENT SYSTEM -->
+            <div class="bg-desk border border-gray-900 rounded-2xl p-6">
+                <h2 class="text-lg font-bold mb-4 flex items-center gap-2"><i data-lucide="shield-alert" class="text-amber-500 w-5 h-5"></i> Master Member Registry & Credentials</h2>
+                <div id="membersEmpty" class="hidden text-gray-500 text-xs italic p-4 text-center border border-dashed border-gray-800 rounded-xl">
+                    No approved members registered inside the authorization matrix database yet.
+                </div>
+                <div id="membersGrid" class="space-y-3 max-h-80 overflow-y-auto pr-1">
+                    <!-- Registered choir members render here -->
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Initialize real-time cross-tab transmission channel
+        const choirChannel = new BroadcastChannel('eklektos_choir_pipeline');
+
+        // CREDENTIAL GENERATOR PIPELINES
+        function createCredentials(fullName) {
+            const rawClean = fullName.toLowerCase().replace(/[^a-z]/g, '');
+            const safePrefix = rawClean.substring(0, 5) || "vocal";
+            const userGen = safePrefix + Math.floor(10 + Math.random() * 90);
+            
+            const charset = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
+            let passGen = "";
+            for (let i = 0; i < 8; i++) {
+                passGen += charset.charAt(Math.floor(Math.random() * charset.length));
+            }
+            return { username: userGen, password: passGen };
+        }
+
+        // DUAL PLATFORM DISPATCH SYSTEM (TELEGRAM & GMAIL ROUTING)
+        function acceptAndInvite(index, fullName, emailAddress, telegramHandle) {
+            const keys = createCredentials(fullName);
+            
+            // 1. Authorize member account in local DB database arrays
+            let authorizedList = JSON.parse(localStorage.getItem('authorizedMembers')) || [];
+            authorizedList.push({ name: fullName, username: keys.username, password: keys.password });
+            localStorage.setItem('authorizedMembers', JSON.stringify(authorizedList));
+
+            // 2. Draft invitation letter payload layout template text
+            const rawMessageText = 
+                `Welcome to Eklektos Teenage Choir, ${fullName}! 🎉\n\n` +
+                `Your audition profile has been approved. Your member portal workspace details have been provisioned:\n` +
+                `   • Username: ${keys.username}\n` +
+                `   • Temporary Password: ${keys.password}\n\n` +
+                `Log in to download your rehearsal MP3 audio tracks directly. See you at practice!`;
+
+            // 3. Copy credentials layout straight to clipboard for quick paste inside Telegram matching spaces
+            navigator.clipboard.writeText(rawMessageText).then(() => {
+                console.log("Credentials stored to clipboard buffer safely.");
+            }).catch(err => console.error("Clipboard routing blocked:", err));
+
+            // 4. Fire up standard Mail workflow mailto clients configuration lines
+            const subject = encodeURIComponent("Welcome to Eklektos Teenage Choir! — Audition Confirmation 🌟");
+            const mailBody = encodeURIComponent(rawMessageText);
+            
+            // 5. Compute Telegram route destination link channels cleanly
+            let cleanHandle = telegramHandle.trim().replace('@', '');
+            let telegramURL = `https://t.me/${cleanHandle}`;
+
+            // 6. Eject item out of queue logs record systems completely
+            let logs = JSON.parse(localStorage.getItem('choirAuditions')) || [];
+            logs.splice(index, 1);
+            localStorage.setItem('choirAuditions', JSON.stringify(logs));
+            loadSystem();
+
+            // 7. Open Telegram routing link channel in secondary tab window screen configuration interface layers
+            window.open(telegramURL, '_blank');
+
+            // 8. Execute active local mail document view location redirect sequences execution chains
+            window.location.href = `mailto:${emailAddress}?subject=${subject}&body=${mailBody}`;
+        }
+
+        // MASTER ADMINISTRATOR CREDENTIAL OVERWRITE MODES
+        function changeUserPassword(username) {
+            const newPassword = prompt(`Enter a new custom password for member account (${username}):`);
+            if (!newPassword || newPassword.trim() === '') return;
+
+            let authorizedList = JSON.parse(localStorage.getItem('authorizedMembers')) || [];
+            authorizedList = authorizedList.map(member => {
+                if (member.username === username) {
+                    member.password = newPassword.trim();
+                }
+                return member;
+            });
+            localStorage.setItem('authorizedMembers', JSON.stringify(authorizedList));
+            alert(`Credentials modified successfully for user: ${username}`);
+            loadSystem();
+        }
+
+        function removeMemberAccount(username) {
+            if(!confirm(`Are you sure you want to completely delete access for member (${username})?`)) return;
+            let authorizedList = JSON.parse(localStorage.getItem('authorizedMembers')) || [];
+            authorizedList = authorizedList.filter(member => member.username !== username);
+            localStorage.setItem('authorizedMembers', JSON.stringify(authorizedList));
+            
+            // Broadcast kick event state token indicators out to the portal screens in real-time
+            localStorage.setItem(`kick_${username}`, 'true');
+            choirChannel.postMessage({ type: 'KICK_USER', username: username });
+            
+            loadSystem();
+        }
+
+        // ANNOUNCEMENT UTILITIES
+        function publishAlert() {
+            const text = document.getElementById('newAlert').value;
+            localStorage.setItem('choirAnnouncement', text);
+            
+            // Send across real-time thread channels instantly
+            choirChannel.postMessage({ type: 'NEW_ANNOUNCEMENT', data: text });
+            alert("Broadcast signal updated!");
+        }
+
+        function clearAlert() {
+            localStorage.removeItem('choirAnnouncement');
+            document.getElementById('newAlert').value = '';
+            
+            choirChannel.postMessage({ type: 'NEW_ANNOUNCEMENT', data: '' });
+            alert("Banner turned off.");
+        }
+
+        // MP3 STREAM PROCESSING ENGINE
+        function addSong(e) {
+            e.preventDefault();
+            const fileInput = document.getElementById('audioFile');
+            const targetFile = fileInput.files[0];
+
+            if (!targetFile) return;
+
+            const fileReader = new FileReader();
+            fileReader.onload = function(event) {
+                const base64AudioData = event.target.result; 
+
+                const newSongObject = {
+                    title: document.getElementById('songTitle').value.trim(),
+                    vocalPart: document.getElementById('vocalPart').value.trim(),
+                    audioData: base64AudioData, 
+                    fileName: targetFile.name
+                };
+
+                let currentSongs = JSON.parse(localStorage.getItem('choirSongs')) || [];
+                currentSongs.unshift(newSongObject);
+                
+                try {
+                    localStorage.setItem('choirSongs', JSON.stringify(currentSongs));
+                } catch(error) {
+                    console.log("LocalStorage quota threshold met, forwarding via pipeline channels.");
+                }
+
+                // Send live across current listening sessions instantly 
+                choirChannel.postMessage({ type: 'NEW_MUSIC', data: newSongObject });
+
+                document.getElementById('songTitle').value = '';
+                document.getElementById('vocalPart').value = '';
+                fileInput.value = '';
+                
+                alert("MP3 file encoded and broadcasted across all portal terminals in real-time!");
+                loadSystem();
+            };
+
+            fileReader.readAsDataURL(targetFile);
+        }
+
+        function removeSong(index) {
+            let currentSongs = JSON.parse(localStorage.getItem('choirSongs')) || [];
+            currentSongs.splice(index, 1);
+            localStorage.setItem('choirSongs', JSON.stringify(currentSongs));
+            
+            choirChannel.postMessage({ type: 'MUSIC_REMOVED' });
+            loadSystem();
+        }
+
+        function removeApplicant(index) {
+            let logs = JSON.parse(localStorage.getItem('choirAuditions')) || [];
+            logs.splice(index, 1);
+            localStorage.setItem('choirAuditions', JSON.stringify(logs));
+            loadSystem();
+        }
+
+        // COMPREHENSIVE VIEWPORT RE-RENDERING LOOPS
+        function loadSystem() {
+            // Render Applications Queue
+            const container = document.getElementById('logsGrid');
+            const emptyState = document.getElementById('queueEmpty');
+            const logs = JSON.parse(localStorage.getItem('choirAuditions')) || [];
+
+            if (logs.length === 0) {
+                container.innerHTML = ''; emptyState.classList.remove('hidden');
+            } else {
+                emptyState.classList.add('hidden');
+                container.innerHTML = logs.map((app, index) => `
+                    <div class="bg-black/30 border border-gray-900 rounded-xl p-4 flex flex-col justify-between">
+                        <div class="flex justify-between items-start border-b border-gray-900 pb-2 mb-2">
+                            <div>
+                                <h4 class="font-bold text-white text-sm">${app.fullName}</h4>
+                                <p class="text-[11px] text-gray-400">${app.email} • Handle/Phone: <span class="text-melody font-bold">${app.telegram || 'Not provided'}</span></p>
+                            </div>
+                        </div>
+                        <p class="text-[11px] text-gray-400 italic bg-black/20 p-2 rounded mb-3">"${app.reason}"</p>
+                        <div class="flex items-center justify-between">
+                            <button onclick="removeApplicant(${index})" class="text-xs text-gray-500 hover:text-red-400 font-bold">Dismiss</button>
+                            <button onclick="acceptAndInvite(${index}, '${app.fullName.replace(/'/g, "\\'")}', '${app.email}', '${app.telegram}')" class="px-3 py-1.5 bg-melody text-xs font-bold rounded-lg flex items-center gap-1"><i data-lucide="send" class="w-3.5 h-3.5"></i> Accept & Invite (Dual Platforms)</button>
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            // Render Master Choir Member Registry Manager Dashboard Viewports
+            const membersContainer = document.getElementById('membersGrid');
+            const membersEmptyState = document.getElementById('membersEmpty');
+            const activeChoirMembers = JSON.parse(localStorage.getItem('authorizedMembers')) || [];
+
+            if(activeChoirMembers.length === 0) {
+                membersContainer.innerHTML = ''; membersEmptyState.classList.remove('hidden');
+            } else {
+                membersEmptyState.classList.add('hidden');
+                membersContainer.innerHTML = activeChoirMembers.map(member => `
+                    <div class="bg-black/40 border border-gray-900 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+                        <div>
+                            <h4 class="font-bold text-white text-sm">${member.name}</h4>
+                            <p class="text-gray-400 font-mono text-[11px] mt-0.5">Username: <span class="text-melody font-bold">${member.username}</span></p>
+                            <p class="text-gray-400 font-mono text-[11px]">Password: <span class="text-tempo font-bold">${member.password}</span></p>
+                        </div>
+                        <div class="flex gap-2 w-full sm:w-auto">
+                            <button onclick="changeUserPassword('${member.username}')" class="flex-1 sm:flex-none px-3 py-1.5 bg-gray-900 border border-gray-800 rounded-lg hover:border-gray-600 font-medium text-[11px]">Change Pass</button>
+                            <button onclick="removeMemberAccount('${member.username}')" class="px-2 py-1.5 text-red-400 hover:bg-red-500/10 rounded-lg font-medium text-[11px]">Revoke</button>
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            // Render Songs List on Admin Panel
+            const songs = JSON.parse(localStorage.getItem('choirSongs')) || [];
+            const songsContainer = document.getElementById('songsListAdmin');
+            if(songs.length === 0) {
+                songsContainer.innerHTML = `<p class="text-[11px] text-gray-600 italic">No audio sheets tracked.</p>`;
+            } else {
+                songsContainer.innerHTML = songs.map((s, idx) => `
+                    <div class="flex items-center justify-between text-xs bg-black/20 p-2 rounded-lg border border-gray-950">
+                        <span class="truncate pr-2 text-gray-300 flex items-center gap-1.5"><i data-lucide="music" class="w-3.5 h-3.5 text-tempo"></i> <b>${s.title}</b> (${s.vocalPart})</span>
+                        <button onclick="removeSong(${idx})" class="text-red-400 hover:underline text-[10px]">Delete</button>
+                    </div>
+                `).join('');
+            }
+            lucide.createIcons();
+        }
+
+        window.onload = loadSystem;
+    </script>
+</body>
+</html>

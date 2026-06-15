@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Join Eklektos | Audition Application</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = {
+            theme: { extend: { colors: { harmony: '#0A0A0F', melody: '#6366F1', tempo: '#10B981' } } }
+        }
+    </script>
+    <style>
+        .glass-panel { background: rgba(17, 17, 27, 0.65); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.08); }
+        .glow-button { background: linear-gradient(135deg, #6366F1 0%, #A855F7 100%); box-shadow: 0 4px 20px -2px rgba(99, 102, 241, 0.4); }
+    </style>
+</head>
+<body class="bg-harmony text-gray-100 min-h-screen flex items-center justify-center p-4 relative overflow-x-hidden">
+
+    <div class="w-full max-w-xl glass-panel p-8 md:p-10 rounded-3xl shadow-2xl relative z-10">
+        <div class="text-center mb-8">
+            <div class="inline-flex p-3 bg-indigo-500/10 rounded-2xl border border-indigo-500/20 mb-4 text-melody">
+                <i data-lucide="mic-2" class="w-8 h-8"></i>
+            </div>
+            <h1 class="text-3xl font-black tracking-tight mb-2">Claim Your Spot</h1>
+            <p class="text-sm text-gray-400">Fill out your details to request an audition slot with Eklektos.</p>
+        </div>
+
+        <form id="auditionForm" class="space-y-5">
+            <div>
+                <label class="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Full Name</label>
+                <div class="relative">
+                    <i data-lucide="user" class="absolute left-4 top-3.5 w-5 h-5 text-gray-500"></i>
+                    <input type="text" id="fullName" required placeholder="John Doe" class="w-full bg-black/40 border border-gray-800 focus:border-melody rounded-xl pl-12 pr-4 py-3 text-white outline-none transition-all">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Email Address</label>
+                    <div class="relative">
+                        <i data-lucide="mail" class="absolute left-4 top-3.5 w-5 h-5 text-gray-500"></i>
+                        <input type="email" id="email" required placeholder="name@example.com" class="w-full bg-black/40 border border-gray-800 focus:border-melody rounded-xl pl-12 pr-4 py-3 text-white outline-none transition-all">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Telegram Username or Phone</label>
+                    <div class="relative">
+                        <i data-lucide="send" class="absolute left-4 top-3.5 w-5 h-5 text-gray-500"></i>
+                        <input type="text" id="telegramContact" required placeholder="@username or +251..." class="w-full bg-black/40 border border-gray-800 focus:border-melody rounded-xl pl-12 pr-4 py-3 text-white outline-none transition-all">
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Age</label>
+                <div class="relative">
+                    <i data-lucide="calendar" class="absolute left-4 top-3.5 w-5 h-5 text-gray-500"></i>
+                    <input type="number" id="age" min="12" max="22" required placeholder="16" class="w-full bg-black/40 border border-gray-800 focus:border-melody rounded-xl pl-12 pr-4 py-3 text-white outline-none transition-all">
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Why do you want to join this choir?</label>
+                <div class="relative">
+                    <i data-lucide="music-3" class="absolute left-4 top-3.5 w-5 h-5 text-gray-500"></i>
+                    <textarea id="reason" required rows="3" placeholder="Tell us about your singing passion..." class="w-full bg-black/40 border border-gray-800 focus:border-melody rounded-xl pl-12 pr-4 py-3 text-white outline-none transition-all resize-none"></textarea>
+                </div>
+            </div>
+
+            <button type="submit" class="w-full glow-button py-4 text-white font-bold rounded-xl transition-all transform flex items-center justify-center gap-2">
+                Submit Application <i data-lucide="arrow-right" class="w-4 h-4"></i>
+            </button>
+        </form>
+
+        <div id="successState" class="hidden absolute inset-0 bg-harmony/95 rounded-3xl flex flex-col items-center justify-center p-8 text-center">
+            <div class="w-16 h-16 bg-tempo/10 text-tempo rounded-full flex items-center justify-center mb-6">
+                <i data-lucide="check-circle-2" class="w-10 h-10"></i>
+            </div>
+            <h2 class="text-2xl font-black mb-3">Application Transmitted!</h2>
+            <p class="text-gray-400 text-sm max-w-sm mb-6">Your audition request has been routed to the director team dashboard.</p>
+            <a href="index.html" class="px-6 py-2.5 bg-gray-900 border border-gray-800 text-sm font-semibold rounded-xl text-gray-300">Return Home</a>
+        </div>
+    </div>
+
+    <script>
+        lucide.createIcons();
+        document.getElementById('auditionForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const app = {
+                id: 'EKL-' + Date.now().toString().slice(-4),
+                fullName: document.getElementById('fullName').value.trim(),
+                email: document.getElementById('email').value.trim(),
+                telegram: document.getElementById('telegramContact').value.trim(),
+                age: document.getElementById('age').value,
+                reason: document.getElementById('reason').value.trim(),
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            };
+            let currentLogs = JSON.parse(localStorage.getItem('choirAuditions')) || [];
+            currentLogs.unshift(app);
+            localStorage.setItem('choirAuditions', JSON.stringify(currentLogs));
+            document.getElementById('successState').classList.remove('hidden');
+        });
+    </script>
+</body>
+</html>
