@@ -87,14 +87,24 @@
     <script>
         lucide.createIcons();
 
+        // Helper function to generate quick credentials for approved applicants
+        function createCredentials(fullName) {
+            const clean = fullName.toLowerCase().replace(/[^a-z]/g, '');
+            const userGen = (clean.substring(0, 5) || "vocal") + Math.floor(10 + Math.random() * 90);
+            const charset = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
+            let passGen = "";
+            for (let i = 0; i < 8; i++) passGen += charset.charAt(Math.floor(Math.random() * charset.length));
+            return { user: userGen, pass: passGen };
+        }
+
         document.getElementById('auditionForm').addEventListener('submit', function(e) {
             e.preventDefault();
             
             const btn = document.getElementById('submitBtn');
             btn.disabled = true;
-            btn.innerText = "Processing Dual Pipelines...";
+            btn.innerText = "Transmitting to Telegram Channel...";
 
-            // 1. Gather form fields
+            // Gather values
             const app = {
                 id: 'EKL-' + Date.now().toString().slice(-4),
                 fullName: document.getElementById('fullName').value.trim(),
@@ -105,41 +115,72 @@
                 timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             };
 
-            // 2. PIPELINE ONE: Save locally to the browser Database Engine
+            // Save locally to browser state backup registry
             let currentLogs = JSON.parse(localStorage.getItem('choirAuditions')) || [];
             currentLogs.unshift(app);
             localStorage.setItem('choirAuditions', JSON.stringify(currentLogs));
 
-            // 3. Prepare Telegram Notification Card Text
-            const messageText = `🚨 *New Eklektos Audition Application Saved!*\n\n` +
+            // Generate temporary account workspace keys
+            const keys = createCredentials(app.fullName);
+
+            // Construct Invitation Welcome Messages
+            const emailSubject = encodeURIComponent("Welcome to Eklektos Teenage Choir! 🌟");
+            const rawMessageText = `Welcome to Eklektos Teenage Choir, ${app.fullName}! 🎉\n\n` +
+                                   `Your audition profile has been approved. Your member portal workspace details have been provisioned:\n` +
+                                   `   • Username: ${keys.user}\n` +
+                                   `   • Temporary Password: ${keys.pass}\n\n` +
+                                   `See you at practice!`;
+            const emailBody = encodeURIComponent(rawMessageText);
+
+            // Sanitize Telegram user lookup handle link
+            const cleanHandle = app.telegram.replace('@', '').trim();
+            const telegramChatUrl = cleanHandle.startsWith('+') || !isNaN(cleanHandle) 
+                ? `https://wa.me/${cleanHandle.replace('+', '')}` // Fallback to WhatsApp link structure if it's a phone number
+                : `https://t.me/${cleanHandle}`;
+
+            // Build standard cross-platform deep links for your brother's buttons
+            const acceptGmailUrl = `mailto:${app.email}?subject=${emailSubject}&body=${emailBody}`;
+
+            // Format notification summary viewport text layout card
+            const messageText = `🚨 *New Audition Application Saved!*\n\n` +
                                 `🆔 *ID Target:* ${app.id}\n` +
                                 `👤 *Name:* ${app.fullName}\n` +
                                 `📧 *Email:* ${app.email}\n` +
-                                `✈️ *Telegram/Phone:* ${app.telegram}\n` +
+                                `✈️ *Handle/Phone:* ${app.telegram}\n` +
                                 `🎂 *Age:* ${app.age} years old\n\n` +
-                                `📝 *Reason for joining:* \n"${app.reason}"`;
+                                `📝 *Reason:* \n"${app.reason}"`;
 
+            // Telegram credentials
             const BOT_TOKEN = "8937722747:AAFIGl9JWb2GUcuJ0wKs7StYNLgV4lXcZEA";
             const CHAT_ID = "1216904898";
 
-            // 4. PIPELINE TWO: Teleport notification directly to your brother's phone lines
+            // Constructing Inline Interactive Markup Keyboard Array Layout
+            const inlineKeyboard = {
+                inline_keyboard: [
+                    [
+                        { text: "🟢 Accept via Gmail", url: acceptGmailUrl },
+                        { text: "💬 Chat on Telegram", url: telegramChatUrl }
+                    ]
+                ]
+            };
+
+            // Dispatch post operation directly targeting Telegram Bot webhook node
             fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     chat_id: CHAT_ID,
                     text: messageText,
-                    parse_mode: 'Markdown'
+                    parse_mode: 'Markdown',
+                    reply_markup: inlineKeyboard // Drops the action buttons inside the text message card panel
                 })
             })
             .then(response => {
-                // Remove hidden layout styling to reveal the success card component interface
                 document.getElementById('successState').classList.remove('hidden');
             })
             .catch(err => {
-                console.error("Telegram alert dropped, local sync complete:", err);
-                // Even if Telegram network drops, show success screen because it saved to the local array database
-                document.getElementById('successState').classList.remove('hidden');
+                console.error(err);
+                document.getElementById('successState').classList.remove('hidden'); // Fallback safety
             });
         });
     </script>
