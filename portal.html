@@ -18,7 +18,7 @@
 </head>
 <body class="bg-harmony text-gray-100 min-h-screen font-sans flex items-center justify-center p-4">
 
-    <!-- VIEW 1: SIGN-IN SCREEN (SAVES STATE SESSIONS) -->
+    <!-- VIEW 1: SIGN-IN SCREEN -->
     <div id="authPanel" class="w-full max-w-md bg-desk border border-gray-800 p-8 rounded-3xl shadow-2xl hidden">
         <div class="text-center mb-6">
             <div class="inline-flex p-3 bg-indigo-500/10 text-melody rounded-2xl border border-indigo-500/20 mb-3">
@@ -44,9 +44,8 @@
         </form>
     </div>
 
-    <!-- VIEW 2: CHOIR MEMBER REGULAR DISPLAY DASHBOARD -->
+    <!-- VIEW 2: CHOIR MEMBER DASHBOARD -->
     <div id="dashboardPanel" class="w-full max-w-5xl bg-desk border border-gray-800 rounded-3xl shadow-2xl overflow-hidden hidden">
-        
         <header class="border-b border-gray-800 bg-black/20 px-8 py-5 flex flex-col sm:flex-row items-center justify-between gap-4">
             <div class="flex items-center gap-3">
                 <div class="w-10 h-10 rounded-xl bg-melody/10 border border-melody/20 flex items-center justify-center text-melody">
@@ -68,7 +67,6 @@
         </header>
 
         <div class="grid grid-cols-1 lg:grid-cols-3">
-            <!-- Left Side Panel: Notifications Control + Director Bulletins -->
             <div class="lg:col-span-1 border-r border-gray-800 p-6 space-y-6">
                 <div id="notificationRequestBox" class="bg-melody/10 border border-melody/20 rounded-2xl p-4 text-center">
                     <i data-lucide="bell-ring" class="w-6 h-6 text-melody mx-auto mb-2 animate-bounce"></i>
@@ -89,19 +87,16 @@
                 </div>
             </div>
 
-            <!-- Right Side Panel: Live MP3 Rehearsal Tracks Interface Audio Mixer -->
             <div class="lg:col-span-2 p-6">
                 <h3 class="text-xs font-bold uppercase tracking-wider text-gray-400 mb-4 flex items-center gap-1.5">
                     <i data-lucide="disc" class="w-4 h-4 text-tempo"></i> MP3 Rehearsal Audio Track Players
                 </h3>
-                <div id="musicGrid" class="space-y-4 max-h-[400px] overflow-y-auto pr-1">
-                    <!-- Audio players embed dynamically here -->
-                </div>
+                <div id="musicGrid" class="space-y-4 max-h-[400px] overflow-y-auto pr-1"></div>
             </div>
         </div>
     </div>
 
-    <!-- VIEW 3: PASSWORD RE-WRITING POPUP DIALOGUE MODAL -->
+    <!-- VIEW 3: PASSWORD RESET MODAL -->
     <div id="passwordModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
         <div class="w-full max-w-sm bg-desk border border-gray-800 p-6 rounded-2xl shadow-2xl">
             <h3 class="font-black text-lg text-white flex items-center gap-2 mb-1">
@@ -121,56 +116,68 @@
     <script>
         lucide.createIcons();
 
-  function checkSession() {
-    const rememberedToken = localStorage.getItem('activeUserSession');
-    
-    if (rememberedToken) {
-        const session = JSON.parse(rememberedToken);
-        const accounts = JSON.parse(localStorage.getItem('authorizedMembers')) || [];
-        
-        // Check if the admin deleted this account or sent a kick signal
-        const accountExists = accounts.some(acc => acc.username === session.username);
-        const isKicked = localStorage.getItem(`kick_${session.username}`) === 'true';
+        const BUCKET_URL = "https://kvdb.io/MN77EunZp9rG4N33gK6xP3/";
 
-        if (!accountExists || isKicked) {
-            // Clear the kick flag and wipe their active session completely
-            localStorage.removeItem(`kick_${session.username}`);
-            localStorage.removeItem('activeUserSession');
-            
-            // Boot them back to the sign-in screen
-            document.getElementById('dashboardPanel').classList.add('hidden');
-            document.getElementById('authPanel').classList.remove('hidden');
-            alert("Your portal access has been modified or revoked by the administrator.");
-            return;
+        async function pullCloudState(key) {
+            try {
+                const response = await fetch(`${BUCKET_URL}${key}`);
+                if (response.ok) return await response.json();
+            } catch (err) {
+                console.error("Storage fetch issue:", err);
+            }
+            return null;
         }
 
-        renderDashboard(session);
-    } else {
-        document.getElementById('dashboardPanel').classList.add('hidden');
-        document.getElementById('authPanel').classList.remove('hidden');
-    }
-}
-        function executeLogin(e) {
+        async function pushCloudState(key, data) {
+            try {
+                await fetch(`${BUCKET_URL}${key}`, { method: 'POST', body: JSON.stringify(data) });
+            } catch (err) {
+                console.error("Storage save fault:", err);
+            }
+        }
+
+        async function checkSession() {
+            const rememberedToken = localStorage.getItem('activeUserSession');
+            
+            if (rememberedToken) {
+                const session = JSON.parse(rememberedToken);
+                const accounts = await pullCloudState('authorizedMembers') || [];
+                const matched = accounts.find(acc => acc.username === session.username);
+
+                if (!matched) {
+                    localStorage.removeItem('activeUserSession');
+                    document.getElementById('dashboardPanel').classList.add('hidden');
+                    document.getElementById('authPanel').classList.remove('hidden');
+                    alert("Your access has been revoked by the administrator.");
+                    return;
+                }
+
+                renderDashboard(session);
+            } else {
+                document.getElementById('dashboardPanel').classList.add('hidden');
+                document.getElementById('authPanel').classList.remove('hidden');
+            }
+        }
+
+        async function executeLogin(e) {
             e.preventDefault();
             const u = document.getElementById('userInput').value.trim();
             const p = document.getElementById('passInput').value.trim();
-            const accounts = JSON.parse(localStorage.getItem('authorizedMembers')) || [];
-
-            // Read matched account file entries accurately
+            
+            const accounts = await pullCloudState('authorizedMembers') || [];
             const matchedUser = accounts.find(acc => acc.username === u && acc.password === p);
+
             if (matchedUser) {
                 document.getElementById('errorMsg').classList.add('hidden');
-                
                 const token = { fullName: matchedUser.name, username: matchedUser.username };
                 localStorage.setItem('activeUserSession', JSON.stringify(token));
-                
                 renderDashboard(token);
             } else {
                 document.getElementById('errorMsg').classList.remove('hidden');
             }
         }
 
-        function renderDashboard(token) {
+        async function renderDashboard(token) {
             document.getElementById('authPanel').classList.add('hidden');
             document.getElementById('dashboardPanel').classList.remove('hidden');
             
@@ -181,13 +188,15 @@
                 document.getElementById('notificationRequestBox').classList.add('hidden');
             }
 
-            const currentAlert = localStorage.getItem('choirAnnouncement');
+            const currentAlert = await pullCloudState('choirAnnouncement') || "";
+            const wall = document.getElementById('announcementWall');
             if (currentAlert && currentAlert.trim() !== '') {
-                document.getElementById('announcementWall').innerText = currentAlert;
+                wall.innerText = currentAlert;
+            } else {
+                wall.innerText = "No announcements posted from management yet.";
             }
 
-            // Sync MP3 Audio Assets
-            const tracks = JSON.parse(localStorage.getItem('choirSongs')) || [];
+            const tracks = await pullCloudState('choirSongs') || [];
             const grid = document.getElementById('musicGrid');
             if (tracks.length === 0) {
                 grid.innerHTML = `<p class="text-xs italic text-gray-600 p-2">No rehearsal audio tracks broadcasted yet.</p>`;
@@ -201,10 +210,9 @@
                             </div>
                             <span class="text-[10px] text-gray-600 font-mono max-w-[150px] truncate">${t.fileName}</span>
                         </div>
-                        <!-- Native Secure HTML5 Base64 MP3 Audio Streamer Engine -->
                         <audio controls class="w-full accent-melody h-8 rounded-lg bg-black/40">
                             <source src="${t.audioData}" type="audio/mp3">
-                            Your device software setup does not support HTML5 media sound execution layouts.
+                            Your device does not support HTML5 playback.
                         </audio>
                     </div>
                 `).join('');
@@ -217,22 +225,20 @@
             if (!show) document.getElementById('newPassInput').value = '';
         }
 
-        function updatePassword(e) {
+        async function updatePassword(e) {
             e.preventDefault();
             const session = JSON.parse(localStorage.getItem('activeUserSession'));
             const newKey = document.getElementById('newPassInput').value.trim();
-            let accounts = JSON.parse(localStorage.getItem('authorizedMembers')) || [];
-
+            
+            let accounts = await pullCloudState('authorizedMembers') || [];
             accounts = accounts.map(acc => {
-                if (acc.username === session.username) {
-                    acc.password = newKey;
-                }
+                if (acc.username === session.username) acc.password = newKey;
                 return acc;
             });
 
-            localStorage.setItem('authorizedMembers', JSON.stringify(accounts));
+            await pushCloudState('authorizedMembers', accounts);
             togglePasswordModal(false);
-            alert("Password updated safely inside records!");
+            alert("Password updated inside cloud records successfully!");
         }
 
         function grantNotificationAccess() {
@@ -252,50 +258,32 @@
             document.getElementById('passInput').value = '';
             checkSession();
         }
-        // REAL-TIME BROADCAST LISTENER
-window.addEventListener('storage', function(e) {
-    const rememberedToken = localStorage.getItem('activeUserSession');
-    if (!rememberedToken) return; // If not logged in, ignore updates
-    
-    const session = JSON.parse(rememberedToken);
 
-    // 1. Listen for new announcements in real-time
-    if (e.key === 'choirAnnouncement') {
-        const newAlert = e.newValue;
-        const wall = document.getElementById('announcementWall');
-        
-        if (newAlert && newAlert.trim() !== '') {
-            wall.innerText = newAlert;
-            // Send native device notification if permissions are allowed
-            if (Notification.permission === 'granted') {
-                new Notification("New Announcement from Conductor! 📢", { body: newAlert });
+        // Live Cloud Synchronization Loop
+        setInterval(async () => {
+            const rememberedToken = localStorage.getItem('activeUserSession');
+            if (rememberedToken) {
+                const session = JSON.parse(rememberedToken);
+                const accounts = await pullCloudState('authorizedMembers') || [];
+                const stillExists = accounts.some(acc => acc.username === session.username);
+                
+                if (!stillExists) {
+                    executeLogout();
+                    alert("Your session has expired or your portal access has been revoked.");
+                    return;
+                }
+                
+                const currentAlert = await pullCloudState('choirAnnouncement') || "";
+                const wall = document.getElementById('announcementWall');
+                if (wall.innerText !== currentAlert && currentAlert !== "") {
+                    wall.innerText = currentAlert;
+                    if (Notification.permission === 'granted') {
+                        new Notification("New Announcement from Conductor! 📢", { body: currentAlert });
+                    }
+                }
             }
-        } else {
-            wall.innerText = "No announcements posted from management yet.";
-        }
-    }
+        }, 8000);
 
-    // 2. Listen for newly dropped MP3 Music in real-time
-    if (e.key === 'choirSongs') {
-        // Force the dashboard to reload the song list from storage immediately
-        renderDashboard(session);
-        
-        // Trigger a notification for the newly added music track
-        if (Notification.permission === 'granted') {
-            const tracks = JSON.parse(e.newValue) || [];
-            if (tracks.length > 0) {
-                new Notification("New Rehearsal Audio Dropped! 🎵", { 
-                    body: `Track: "${tracks[0].title}" has been uploaded for ${tracks[0].vocalPart}.` 
-                });
-            }
-        }
-    }
-
-    // 3. Listen for immediate admin Revoke/Kick updates
-    if (e.key === `kick_${session.username}` || e.key === 'authorizedMembers') {
-        checkSession(); // Instantly checks if they still exist and boots them out if revoked
-    }
-});
         window.onload = checkSession;
     </script>
 </body>
