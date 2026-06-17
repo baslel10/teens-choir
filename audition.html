@@ -88,15 +88,11 @@
         lucide.createIcons();
 
         const BUCKET_URL = "https://kvdb.io/MN77EunZp9rG4N33gK6xP3/";
+        const BOT_TOKEN = "8937722747:AAFIGl9JWb2GUcuJ0wKs7StYNLgV4lXcZEA";
+        const CHAT_ID = "1216904898";
 
-        function createCredentials(fullName) {
-            const clean = fullName.toLowerCase().replace(/[^a-z]/g, '');
-            const userGen = (clean.substring(0, 5) || "vocal") + Math.floor(10 + Math.random() * 90);
-            const charset = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
-            let passGen = "";
-            for (let i = 0; i < 8; i++) passGen += charset.charAt(Math.floor(Math.random() * charset.length));
-            return { user: userGen, pass: passGen };
-        }
+        // Change this path to point exactly to your live hosted admin.html page!
+        const ADMIN_PAGE_URL = window.location.href.replace('audition.html', 'admin.html');
 
         async function saveToCloudBucket(key, data) {
             try {
@@ -105,7 +101,7 @@
                     body: JSON.stringify(data)
                 });
             } catch (err) {
-                console.error("Cloud pipeline sync failure:", err);
+                console.error("Cloud database sync failure:", err);
             }
         }
 
@@ -136,33 +132,19 @@
                 timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             };
 
-            // Pull current cloud items, insert latest tracking asset, write modifications back
+            // 1. Core Synchronization Sync to Cloud KV Bucket
             let cloudAuditions = await fetchFromCloudBucket('choirAuditions') || [];
             cloudAuditions.unshift(app);
             await saveToCloudBucket('choirAuditions', cloudAuditions);
 
-            // Local cache mirror preservation
+            // Local cache snapshot backup fallback
             localStorage.setItem('choirAuditions', JSON.stringify(cloudAuditions));
 
-            const keys = createCredentials(app.fullName);
-            const emailSubject = encodeURIComponent("Welcome to Eklektos Teenage Choir! 🌟");
-            const rawMessageText = `Welcome to Eklektos Teenage Choir, ${app.fullName}! 🎉\n\n` +
-                                   `Your audition profile has been approved. Your member portal workspace details have been provisioned:\n` +
-                                   `    • Username: ${keys.user}\n` +
-                                   `    • Temporary Password: ${keys.pass}\n\n` +
-                                   `See you at practice!`;
-            const emailBody = encodeURIComponent(rawMessageText);
-
-            const cleanHandle = app.telegram.replace('@', '').trim();
-            const telegramChatUrl = cleanHandle.startsWith('+') || !isNaN(cleanHandle) 
-                ? `https://wa.me/${cleanHandle.replace('+', '')}` 
-                : `https://t.me/${cleanHandle}`;
-
-            const acceptGmailUrl = `mailto:${app.email}?subject=${emailSubject}&body=${emailBody}`;
+            // 2. Prepare Clean Interactive Telegram Payload Routing Elements
             const cleanDataTag = `||DATA:${JSON.stringify(app)}||`;
-
-            const messageText = `🚨 *New Audition Application Saved!* \n\n` +
-                                `🆔 *ID Target:* ${app.id}\n` +
+            const messageText = `🎵 *New Eklektos Audition Submission!*\n` +
+                                `──────────────────────\n` +
+                                `🆔 *ID Target:* \`${app.id}\`\n` +
                                 `👤 *Name:* ${app.fullName}\n` +
                                 `📧 *Email:* ${app.email}\n` +
                                 `✈️ *Handle/Phone:* ${app.telegram}\n` +
@@ -170,18 +152,20 @@
                                 `📝 *Reason:* \n"${app.reason}"\n\n` +
                                 `${cleanDataTag}`;
 
-            const BOT_TOKEN = "8937722747:AAFIGl9JWb2GUcuJ0wKs7StYNLgV4lXcZEA";
-            const CHAT_ID = "1216904898";
+            // Create direct payload action urls targeting the local conductor admin terminal view engine
+            const acceptActionUrl = `${ADMIN_PAGE_URL}?action=accept&id=${app.id}&name=${encodeURIComponent(app.fullName)}`;
+            const declineActionUrl = `${ADMIN_PAGE_URL}?action=decline&id=${app.id}&name=${encodeURIComponent(app.fullName)}`;
 
             const inlineKeyboard = {
                 inline_keyboard: [
                     [
-                        { text: "🟢 Accept via Gmail", url: acceptGmailUrl },
-                        { text: "💬 Chat on Telegram", url: telegramChatUrl }
+                        { text: "🟢 Accept Application", url: acceptActionUrl },
+                        { text: "🔴 Decline Request", url: declineActionUrl }
                     ]
                 ]
             };
 
+            // 3. Dispatch Packet directly across Telegram Bot API Channels
             try {
                 await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
                     method: 'POST',
@@ -194,7 +178,7 @@
                     })
                 });
             } catch (err) {
-                console.error("Telegram API route fault:", err);
+                console.error("Telegram API endpoint fault connection error:", err);
             }
 
             document.getElementById('successState').classList.remove('hidden');
