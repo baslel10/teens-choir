@@ -156,9 +156,14 @@
                             <p class="text-gray-400 font-mono text-[10px]">${a.email} | Contact: ${a.telegram}</p>
                             <p class="text-gray-500 italic text-[11px] mt-1">"${a.reason}"</p>
                         </div>
-                        <button onclick="openProvisioning('${a.fullName}', '${a.id}')" class="w-full sm:w-auto px-3 py-1.5 bg-tempo text-black font-black text-[10px] rounded-lg tracking-wider uppercase transition-all">
-                            Approve & Key
-                        </button>
+                        <div class="flex gap-2 w-full sm:w-auto">
+                            <button onclick="openProvisioning('${a.fullName}', '${a.id}')" class="flex-1 sm:flex-initial px-3 py-1.5 bg-tempo text-black font-black text-[10px] rounded-lg tracking-wider uppercase transition-all">
+                                Approve
+                            </button>
+                            <button onclick="rejectApplicationDirectly('${a.id}')" class="px-3 py-1.5 bg-red-500/10 text-red-400 rounded-lg text-[10px] font-bold">
+                                Dismiss
+                            </button>
+                        </div>
                     </div>
                 `).join('');
             }
@@ -182,6 +187,35 @@
                 `).join('');
             }
             lucide.createIcons();
+        }
+
+        // Catch incoming clicks routed straight from Telegram button URIs
+        async function interceptTelegramWebhookActions() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const action = urlParams.get('action'); 
+            const targetId = urlParams.get('id');
+            const targetName = urlParams.get('name');
+
+            if (action && targetId) {
+                // Clear URL parameters immediately so page refreshes don't re-trigger actions
+                window.history.replaceState({}, document.title, window.location.pathname);
+
+                if (action === 'accept') {
+                    openProvisioning(targetName || "Selected Applicant", targetId);
+                } else if (action === 'decline') {
+                    const check = confirm(`Decline and delete application registration reference: ${targetId}?`);
+                    if (check) {
+                        await rejectApplicationDirectly(targetId);
+                    }
+                }
+            }
+        }
+
+        async function rejectApplicationDirectly(id) {
+            let applications = await readCloud('choirAuditions') || [];
+            applications = applications.filter(a => a.id !== id);
+            await writeCloud('choirAuditions', applications);
+            await syncInterfaceData();
         }
 
         async function publishAnnouncement() {
@@ -278,7 +312,10 @@
             alert(`Account workspace signature assigned to [${username}] revoked completely.`);
         }
 
-        window.onload = syncInterfaceData;
+        window.onload = async function() {
+            await syncInterfaceData();
+            await interceptTelegramWebhookActions();
+        };
     </script>
 </body>
 </html>
